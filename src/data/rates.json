@@ -1,0 +1,27 @@
+{
+  "categories": [
+    {
+      "id": "tech",
+      "label": "技術者単価",
+      "items": [
+        { "id": "tech-1", "name": "主任（8h）", "unit": "日", "price": 60000 },
+        { "id": "tech-2", "name": "技術者（8h）", "unit": "日", "price": 45000 }
+      ]
+    },
+    {
+      "id": "machine",
+      "label": "機械単価",
+      "items": [
+        { "id": "mach-1", "name": "バックホー（1日）", "unit": "日", "price": 120000 },
+        { "id": "mach-2", "name": "小型コンプレッサ（1日）", "unit": "日", "price": 18000 }
+      ]
+    },
+    {
+      "id": "security",
+      "label": "警備単価",
+      "items": [
+        { "id": "sec-1", "name": "警備員（1人/8h）", "unit": "日", "price": 24000 }
+      ]
+    }
+  ]
+}

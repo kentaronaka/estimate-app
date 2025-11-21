@@ -1,8 +1,11 @@
+// ...existing code...
 import { useState } from "react";
 import "./App.css";
+import Nav from "./components/Nav";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
+import RatesSidebar from "./components/RatesSidebar"; 
+// ...existing code...
 
 type LineItem = {
   id: number;
@@ -29,7 +32,6 @@ type StoredEstimate = EstimateData & {
 const TAX_RATE = 0.1; // 10%
 const STORAGE_KEY = "estimate-app/estimates-v1";
 
-// 空の見積を作る
 const createEmptyEstimate = (): EstimateData & { items: LineItem[] } => {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -75,6 +77,11 @@ function App() {
   // 今開いている見積のID（新規なら null）
   const [currentId, setCurrentId] = useState<string | null>(null);
 
+  // 右サイドバー（保存一覧）を表示するか
+  const [showSaved, setShowSaved] = useState<boolean>(true);
+
+  const handleToggleSaved = () => setShowSaved((s) => !s);
+
   // 行の金額
   const calcLineAmount = (item: LineItem) =>
     item.quantity * item.unitPrice;
@@ -117,6 +124,20 @@ function App() {
         quantity: 1,
         unit: "",
         unitPrice: 0,
+      },
+    ]);
+  };
+
+  // 単価を挿入する（RatesSidebar から呼ばれる）
+  const handleInsertRate = (r: { description: string; unit: string; unitPrice: number }) => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        description: r.description,
+        quantity: 1,
+        unit: r.unit,
+        unitPrice: r.unitPrice,
       },
     ]);
   };
@@ -236,8 +257,6 @@ function App() {
       format: "a4",
     });
 
-    // 日本語フォントを public フォルダから読み込み、jsPDF に登録する
-    // フォントファイルを `public/fonts/NotoSansJP-Regular.ttf` に配置してください。
     const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
       let binary = "";
       const bytes = new Uint8Array(buffer);
@@ -260,7 +279,6 @@ function App() {
           (doc as any).addFont("NotoSansJP-Regular.ttf", "NotoSansJP", "normal");
           doc.setFont("NotoSansJP");
         } catch (e) {
-          // addFileToVFS/addFont が無い場合は jsPDF のバージョン違いの可能性がある
           console.warn("フォント登録に失敗しました。日本語が文字化けする可能性があります。", e);
         }
       } else {
@@ -273,14 +291,12 @@ function App() {
     const pageWidth = doc.internal.pageSize.getWidth();
     let y = 15;
 
-    // タイトル
     doc.setFontSize(16);
     doc.text(title || "御見積書", pageWidth / 2, y, { align: "center" });
     y += 10;
 
     doc.setFontSize(10);
 
-    // 見積日・顧客名・案件名
     if (issueDate) {
       doc.text(`見積日: ${issueDate}`, pageWidth - 20, y, {
         align: "right",
@@ -300,7 +316,6 @@ function App() {
       y += 4;
     }
 
-    // テーブル（明細）
     const body = items.map((item, index) => [
       String(index + 1),
       item.description || "",
@@ -310,7 +325,6 @@ function App() {
       (item.quantity * item.unitPrice).toLocaleString(),
     ]);
 
-    // autoTable を直接呼び出す（プラグインを関数としてインポート）
     autoTable(doc as any, {
       head: [["No", "品名・内容", "数量", "単位", "単価", "金額"]],
       body,
@@ -327,11 +341,10 @@ function App() {
       },
     });
     
-        const finalY =
-          ((doc as any).lastAutoTable && (doc as any).lastAutoTable.finalY) ||
-          y + 40;
+    const finalY =
+      ((doc as any).lastAutoTable && (doc as any).lastAutoTable.finalY) ||
+      y + 40;
 
-    // 小計・税・合計
     let summaryY = finalY + 10;
     doc.setFontSize(11);
     doc.text(
@@ -353,7 +366,6 @@ function App() {
       align: "right",
     });
 
-    // ファイル名
     const safeProject = (projectName || "estimate").replace(/[\\/:*?"<>|]/g, "_");
     const safeCustomer = (customerName || "").replace(/[\\/:*?"<>|]/g, "_");
     const fileNameParts = [safeProject, safeCustomer, issueDate].filter(
@@ -365,7 +377,6 @@ function App() {
     doc.save(fileName);
   };
 
-  // 日付表示用（一覧）
   const formatDate = (iso: string) => {
     if (!iso) return "";
     try {
@@ -382,307 +393,352 @@ function App() {
   };
 
   return (
-    <div
-      style={{
-        padding: "24px",
-        maxWidth: "1100px",
-        margin: "0 auto",
-        display: "grid",
-        gridTemplateColumns: "2fr 1fr",
-        gap: "16px",
-        alignItems: "flex-start",
-      }}
-    >
-      {/* 左側：編集エリア */}
-      <div>
-        <h1 style={{ marginBottom: "8px" }}>{title}</h1>
+    <>
+      <Nav onNew={handleNewEstimate} onToggleSaved={handleToggleSaved} showSaved={showSaved} />
 
-        <div style={{ marginBottom: "8px" }}>
-          <button onClick={handleNewEstimate}>🆕 新規見積</button>
-          <button
-            onClick={handleSaveEstimate}
-            style={{ marginLeft: "8px" }}
-          >
-            💾 この見積を保存／上書き
-          </button>
-          <button
-            onClick={handleExportPdf}
-            style={{ marginLeft: "8px" }}
-          >
-            📄 PDF出力（A4縦）
-          </button>
-        </div>
-
-        {/* 見積ヘッダー */}
-        <section
-          style={{
-            border: "1px solid #ccc",
-            padding: "16px",
-            marginBottom: "16px",
-            borderRadius: "8px",
-          }}
-        >
-          <div style={{ marginBottom: "8px" }}>
-            <label>
-              顧客名：{" "}
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                style={{ width: "70%" }}
-                placeholder="〇〇株式会社 御中"
-              />
-            </label>
-          </div>
-          <div style={{ marginBottom: "8px" }}>
-            <label>
-              案件名：{" "}
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                style={{ width: "70%" }}
-                placeholder="〇〇工事に関する御見積"
-              />
-            </label>
-          </div>
-          <div style={{ marginBottom: "8px" }}>
-            <label>
-              見積日：{" "}
-              <input
-                type="date"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
-              />
-            </label>
-          </div>
-          {currentId && (
-            <div style={{ marginTop: "4px", fontSize: "0.8rem", color: "#555" }}>
-              編集中の見積ID：{currentId}
-            </div>
-          )}
-        </section>
-
-        {/* 明細テーブル */}
-        <section>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginBottom: "16px",
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  No
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  品名・内容
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  数量
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  単位
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  単価
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  金額
-                </th>
-                <th style={{ border: "1px solid #ccc", padding: "4px" }}>
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => {
-                const amount = calcLineAmount(item);
-                return (
-                  <tr key={item.id}>
-                    <td
-                      style={{
-                        border: "1px solid #ccc",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {index + 1}
-                    </td>
-                    <td
-                      style={{ border: "1px solid #ccc", padding: "4px" }}
-                    >
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) =>
-                          handleItemChange(
-                            item.id,
-                            "description",
-                            e.target.value
-                          )
-                        }
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td
-                      style={{ border: "1px solid #ccc", padding: "4px" }}
-                    >
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleItemChange(
-                            item.id,
-                            "quantity",
-                            e.target.value
-                          )
-                        }
-                        style={{ width: "80px", textAlign: "right" }}
-                      />
-                    </td>
-                    <td
-                      style={{ border: "1px solid #ccc", padding: "4px" }}
-                    >
-                      <input
-                        type="text"
-                        value={item.unit}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "unit", e.target.value)
-                        }
-                        style={{ width: "80px" }}
-                      />
-                    </td>
-                    <td
-                      style={{ border: "1px solid #ccc", padding: "4px" }}
-                    >
-                      <input
-                        type="number"
-                        value={item.unitPrice}
-                        onChange={(e) =>
-                          handleItemChange(
-                            item.id,
-                            "unitPrice",
-                            e.target.value
-                          )
-                        }
-                        style={{ width: "100px", textAlign: "right" }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #ccc",
-                        padding: "4px",
-                        textAlign: "right",
-                      }}
-                    >
-                      {amount.toLocaleString()}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #ccc",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      <button onClick={() => handleRemoveItem(item.id)}>
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          <button onClick={handleAddItem}>＋ 行を追加</button>
-        </section>
-
-        {/* 合計表示 */}
-        <section
-          style={{
-            marginTop: "24px",
-            borderTop: "1px solid #ccc",
-            paddingTop: "16px",
-            textAlign: "right",
-          }}
-        >
-          <div>小計：{subTotal.toLocaleString()} 円</div>
-          <div>消費税（10%）：{tax.toLocaleString()} 円</div>
-          <div style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
-            合計：{total.toLocaleString()} 円
-          </div>
-        </section>
-      </div>
-
-      {/* 右側：保存済み見積一覧 */}
-      <aside
+      <div
         style={{
-          border: "1px solid #ccc",
-          borderRadius: "8px",
-          padding: "12px",
-          maxHeight: "80vh",
-          overflowY: "auto",
+          padding: "24px",
+          maxWidth: "1100px",
+          margin: "0 auto",
+          display: "grid",
+          // 左サイドバーを追加：showSaved が true のときは 3 列、false のときは 2 列にする
+          gridTemplateColumns: showSaved ? "200px 2fr 1fr" : "200px 1fr",
+          gap: "16px",
+          alignItems: "flex-start",
         }}
       >
-        <h2 style={{ fontSize: "1rem", marginBottom: "8px" }}>
-          📂 保存済み見積一覧
-        </h2>
-        {estimates.length === 0 ? (
-          <div style={{ fontSize: "0.9rem", color: "#666" }}>
-            まだ保存された見積はありません。
+        {/* 左側：サイドバーナビ */}
+        <nav
+          aria-label="サイドナビ"
+          style={{
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            padding: "12px",
+            height: "fit-content",
+            position: "sticky",
+            top: "16px",
+            background: "#fff",
+          }}
+        >
+      
+          <h3 style={{ marginTop: 0, marginBottom: "8px" }}>ナビゲーション</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <button onClick={handleNewEstimate}>🆕 新規作成</button>
+            <button onClick={handleSaveEstimate}>💾 保存</button>
+            <button onClick={handleExportPdf}>📄 PDF出力</button>
+            <button onClick={handleToggleSaved}>
+              {showSaved ? "▶ 保存一覧を閉じる" : "◀ 保存一覧を開く"}
+            </button>
           </div>
-        ) : (
-          <ul
+
+          <div style={{ marginTop: "12px", fontSize: "0.9rem", color: "#666" }}>
+            保存数：{estimates.length}
+          </div>
+        </nav>
+
+        {/* 単価データベースを表示 */}
+        <RatesSidebar onInsert={handleInsertRate} />
+
+        {/* 中央：編集エリア */}
+        <div>
+          {/* ...existing code... */}
+        </div>
+
+        {/* 中央：編集エリア */}
+        <div>
+          <h1 style={{ marginBottom: "8px" }}>{title}</h1>
+
+          <div style={{ marginBottom: "8px" }}>
+            <button onClick={handleNewEstimate}>🆕 新規見積</button>
+            <button
+              onClick={handleSaveEstimate}
+              style={{ marginLeft: "8px" }}
+            >
+              💾 この見積を保存／上書き
+            </button>
+            <button
+              onClick={handleExportPdf}
+              style={{ marginLeft: "8px" }}
+            >
+              📄 PDF出力（A4縦）
+            </button>
+          </div>
+
+          {/* 見積ヘッダー */}
+          <section
             style={{
-              listStyle: "none",
-              padding: 0,
-              margin: 0,
+              border: "1px solid #ccc",
+              padding: "16px",
+              marginBottom: "16px",
+              borderRadius: "8px",
             }}
           >
-            {estimates.map((est) => (
-              <li
-                key={est.id}
+            <div style={{ marginBottom: "8px" }}>
+              <label>
+                顧客名：{" "}
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  style={{ width: "70%" }}
+                  placeholder="〇〇株式会社 御中"
+                />
+              </label>
+            </div>
+            <div style={{ marginBottom: "8px" }}>
+              <label>
+                案件名：{" "}
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  style={{ width: "70%" }}
+                  placeholder="〇〇工事に関する御見積"
+                />
+              </label>
+            </div>
+            <div style={{ marginBottom: "8px" }}>
+              <label>
+                見積日：{" "}
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                />
+              </label>
+            </div>
+            {currentId && (
+              <div style={{ marginTop: "4px", fontSize: "0.8rem", color: "#555" }}>
+                編集中の見積ID：{currentId}
+              </div>
+            )}
+          </section>
+
+          {/* 明細テーブル */}
+          <section>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginBottom: "16px",
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    No
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    品名・内容
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    数量
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    単位
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    単価
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    金額
+                  </th>
+                  <th style={{ border: "1px solid #ccc", padding: "4px" }}>
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => {
+                  const amount = calcLineAmount(item);
+                  return (
+                    <tr key={item.id}>
+                      <td
+                        style={{
+                          border: "1px solid #ccc",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {index + 1}
+                      </td>
+                      <td
+                        style={{ border: "1px solid #ccc", padding: "4px" }}
+                      >
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) =>
+                            handleItemChange(
+                              item.id,
+                              "description",
+                              e.target.value
+                            )
+                          }
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                      <td
+                        style={{ border: "1px solid #ccc", padding: "4px" }}
+                      >
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleItemChange(
+                              item.id,
+                              "quantity",
+                              e.target.value
+                            )
+                          }
+                          style={{ width: "80px", textAlign: "right" }}
+                        />
+                      </td>
+                      <td
+                        style={{ border: "1px solid #ccc", padding: "4px" }}
+                      >
+                        <input
+                          type="text"
+                          value={item.unit}
+                          onChange={(e) =>
+                            handleItemChange(item.id, "unit", e.target.value)
+                          }
+                          style={{ width: "80px" }}
+                        />
+                      </td>
+                      <td
+                        style={{ border: "1px solid #ccc", padding: "4px" }}
+                      >
+                        <input
+                          type="number"
+                          value={item.unitPrice}
+                          onChange={(e) =>
+                            handleItemChange(
+                              item.id,
+                              "unitPrice",
+                              e.target.value
+                            )
+                          }
+                          style={{ width: "100px", textAlign: "right" }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #ccc",
+                          padding: "4px",
+                          textAlign: "right",
+                        }}
+                      >
+                        {amount.toLocaleString()}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #ccc",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <button onClick={() => handleRemoveItem(item.id)}>
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <button onClick={handleAddItem}>＋ 行を追加</button>
+          </section>
+
+          {/* 合計表示 */}
+          <section
+            style={{
+              marginTop: "24px",
+              borderTop: "1px solid #ccc",
+              paddingTop: "16px",
+              textAlign: "right",
+            }}
+          >
+            <div>小計：{subTotal.toLocaleString()} 円</div>
+            <div>消費税（10%）：{tax.toLocaleString()} 円</div>
+            <div style={{ fontWeight: "bold", fontSize: "1.2rem" }}>
+              合計：{total.toLocaleString()} 円
+            </div>
+          </section>
+        </div>
+
+        {/* 右側：保存済み見積一覧 */}
+        {showSaved && (
+          <aside
+            style={{
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+              padding: "12px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h2 style={{ fontSize: "1rem", marginBottom: "8px" }}>
+              📂 保存済み見積一覧
+            </h2>
+            {estimates.length === 0 ? (
+              <div style={{ fontSize: "0.9rem", color: "#666" }}>
+                まだ保存された見積はありません。
+              </div>
+            ) : (
+              <ul
                 style={{
-                  borderBottom: "1px solid #ddd",
-                  padding: "8px 0",
-                  fontSize: "0.9rem",
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
                 }}
               >
-                <div
-                  style={{
-                    fontWeight:
-                      currentId === est.id ? "bold" : "normal",
-                  }}
-                >
-                  {est.projectName || est.customerName || "（名称未設定）"}
-                </div>
-                <div style={{ color: "#666" }}>
-                  作成：{formatDate(est.createdAt)}
-                </div>
-                <div style={{ color: "#666" }}>
-                  更新：{formatDate(est.updatedAt)}
-                </div>
-                <div style={{ marginTop: "4px" }}>
-                  <button onClick={() => handleOpenEstimate(est.id)}>
-                    開く
-                  </button>
-                  <button
-                    onClick={() => handleDeleteEstimate(est.id)}
-                    style={{ marginLeft: "4px" }}
+                {estimates.map((est) => (
+                  <li
+                    key={est.id}
+                    style={{
+                      borderBottom: "1px solid #ddd",
+                      padding: "8px 0",
+                      fontSize: "0.9rem",
+                    }}
                   >
-                    削除
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                    <div
+                      style={{
+                        fontWeight:
+                          currentId === est.id ? "bold" : "normal",
+                      }}
+                    >
+                      {est.projectName || est.customerName || "（名称未設定）"}
+                    </div>
+                    <div style={{ color: "#666" }}>
+                      作成：{formatDate(est.createdAt)}
+                    </div>
+                    <div style={{ color: "#666" }}>
+                      更新：{formatDate(est.updatedAt)}
+                    </div>
+                    <div style={{ marginTop: "4px" }}>
+                      <button onClick={() => handleOpenEstimate(est.id)}>
+                        開く
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEstimate(est.id)}
+                        style={{ marginLeft: "4px" }}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
         )}
-      </aside>
-    </div>
+      </div>
+    </>
   );
 }
 
 export default App;
+// ...existing code...

@@ -1,0 +1,9 @@
+model Rate {
+  id         Int      @id @default(autoincrement())
+  description String
+  technicianRate Float
+  machineRate Float
+  securityRate Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

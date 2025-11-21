@@ -1,0 +1,29 @@
+{
+  "name": "rate-database-project",
+  "version": "1.0.0",
+  "description": "A project for managing rates such as technician rates, machinery rates, and security rates.",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "prisma": "^2.30.0",
+    "dotenv": "^10.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.4.3",
+    "ts-node": "^10.0.0",
+    "eslint": "^7.32.0",
+    "jest": "^27.0.0",
+    "@types/jest": "^27.0.0",
+    "@types/node": "^16.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0"
+  },
+  "author": "Your Name",
+  "license": "MIT"
+}
